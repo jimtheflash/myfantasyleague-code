@@ -40,7 +40,8 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   
   # loop through leagues to get rosters from each
   drafts.list <- c()
-  for (i in 1:nrow(leagues.df)) {
+  total.drafts <- nrow(leagues.df)
+  for (i in 1:total.drafts) {
     L <- leagues.df$leagueID[[i]]
     franch <- leagues.df$league.franchise_id[[i]]
     print(paste0("Getting draft info for league ", L, ", franchise ", franch, "..."))
@@ -72,6 +73,7 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   draft.summaries <- dplyr::left_join(drafts.df, players.df, by = "id") %>%
     group_by(name, position) %>%
     summarise(drafted_count = n(),
+              drafted_percentage = n() / total.drafts,
               dpos_min = min(dpos),
               dpos_median = median(dpos),
               dpos_mean = mean(dpos),
