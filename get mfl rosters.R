@@ -44,7 +44,9 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   for (i in 1:total.drafts) {
     L <- leagues.df$leagueID[[i]]
     franch <- leagues.df$league.franchise_id[[i]]
+    
     print(paste0("Getting draft info for league ", L, ", franchise ", franch, "..."))
+    
     draft.url <- paste0("https://www76.myfantasyleague.com/", year,
                         "/export?TYPE=rosters&L=", L, 
                         "&APIKEY=&FRANCHISE=", franch, 
@@ -54,6 +56,7 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
     
     js.drafts <- jsonlite::fromJSON(rawToChar(draft$content))
     draft.temp <- as.data.frame(js.drafts$rosters$franchise$player)
+    draft.temp$leagueID <- L
     drafts.list[[length(drafts.list) + 1]] <- draft.temp
   }
   drafts.df <- do.call(rbind, drafts.list)
@@ -69,8 +72,17 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   js.players <- jsonlite::fromJSON(rawToChar(players$content))
   players.df <- as.data.frame(js.players$players$player)
   
-  # join it all together, summarise by player, order and rank
-  draft.summaries <- dplyr::left_join(drafts.df, players.df, by = "id") %>%
+  # league summaries
+  league.summaries <- dplyr::left_join(drafts.df, players.df, by = "id") %>%
+    group_by(leagueID) %>%
+    summarise(wr_count = n_distinct(id[position == "WR"]),
+              rb_count = n_distinct(id[position == "RB"]),
+              te_count = n_distinct(id[position == "TE"]),
+              qb_count = n_distinct(id[position == "QB"]),
+              def_count = n_distinct(id[position == "Def"]))
+  
+  # player summaries
+  player.summaries <- dplyr::left_join(drafts.df, players.df, by = "id") %>%
     group_by(name, position) %>%
     summarise(drafted_count = n(),
               drafted_percentage = n() / total.drafts,
@@ -90,7 +102,7 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   
   # make some graphs
   overall.plot <-
-    ggplot(data = filter(draft.summaries, overall_count_rank <= rk),
+    ggplot(data = filter(player.summaries, overall_count_rank <= rk),
            mapping = aes(x = player_factor, y = drafted_count)) +
     geom_point() +
     scale_y_continuous(limits = c(1, 10), breaks = seq(1, 10, 1)) +
@@ -103,9 +115,9 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
   
   
   plot.list <- c()
-  for (i in unique(draft.summaries$position)) {
+  for (i in unique(player.summaries$position)) {
     p <- 
-      ggplot(data = filter(draft.summaries, position == i, pos_count_rank <= rk),
+      ggplot(data = filter(player.summaries, position == i, pos_count_rank <= rk),
              mapping = aes(x = player_factor, y = drafted_count)) +
       geom_point() +
       scale_y_continuous(limits = c(1, 10), breaks = seq(1, 10, 1)) +
@@ -127,7 +139,8 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
                        ncol = 3, 
                        top = "MFL Player Exposure")
   # generate output
-  outputs <- list(data = select(draft.summaries, -player_factor), 
+  outputs <- list(league.data = league.summaries,
+                  player.data = select(player.summaries, -player_factor), 
                   plots = plots)
   return(outputs)
 }
