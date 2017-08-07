@@ -56,8 +56,12 @@ get_mfl_lineups <- function(user = NULL, pass = NULL, year = NULL, rk = 20) {
     
     js.drafts <- jsonlite::fromJSON(rawToChar(draft$content))
     draft.temp <- as.data.frame(js.drafts$rosters$franchise$player)
-    draft.temp$leagueID <- L
-    drafts.list[[length(drafts.list) + 1]] <- draft.temp
+    
+    # handle case if a league has started but you haven't picked yet
+    if (nrow(draft.temp) > 0) {
+      draft.temp$leagueID <- L
+      drafts.list[[length(drafts.list) + 1]] <- draft.temp
+    }
   }
   drafts.df <- do.call(rbind, drafts.list)
   # recode draft round and position
